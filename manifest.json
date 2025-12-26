@@ -42,8 +42,8 @@
     {
       "id": "plugin-002",
       "name": "LearningDeck Result Builder Automator",
-      "description": "A plugin which helps to automate result creation templates for students using TemplifyAPI",
-      "details": " Build detailed grade reports with weighted categories, multiple grading scales, and progress tracking. Export reports in various formats for easy sharing.",
+      "description": "A plugin which helps to automate result creation templates for students",
+      "details": " Upload school report docs file and map the result data to the template, Export reports in DOCSX FILE for easy sharing.",
       "version": "2.1.3",
       "width": 1200,
       "height": 800,
