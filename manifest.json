@@ -41,7 +41,7 @@
     },
     {
       "id": "plugin-002",
-      "name": "Templify Result Builder Automator",
+      "name": "LearningDeck Result Builder Automator",
       "description": "A plugin which helps to automate result creation templates for students using TemplifyAPI",
       "details": " Build detailed grade reports with weighted categories, multiple grading scales, and progress tracking. Export reports in various formats for easy sharing.",
       "version": "2.1.3",
@@ -50,7 +50,7 @@
       "author": "EduTools Inc",
       "category": "Assessment",
       "tags": ["grades", "assessment", "reporting", "automation"],
-      "link": "https://plugins-manager-lds.vercel.app/result-builder",
+      "link": "https://updated-plugin-manager-lds-b7bz.vercel.app/",
       "previewImage": "https://example.com/images/grade-calc-preview.jpg",
       "icon": "https://example.com/icons/grade-calc-icon.png",
       "screenshots": [
