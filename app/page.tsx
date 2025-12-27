@@ -85,7 +85,7 @@ interface ExamResult {
 interface TemplateMapping {
   subject: string
   cellId: string
-  format: 'percentage' | 'raw' | 'grade' | 'total' | 'calculated' | 'manual_input' | 'student_id' | 'class_name' | 'student_name' | 'ct_score' | 'exam_score' | 'ct_exam_total'
+  format: 'percentage' | 'raw' | 'grade' | 'total' | 'calculated' | 'manual_input' | 'student_id' | 'class_name' | 'student_name' | 'student_image' | 'ct_score' | 'exam_score' | 'ct_exam_total'
   examId?: string // Specific exam ID to use
   examName?: string // Specific exam name to use
   examType?: 'CT' | 'EXAM' | 'ASSIGNMENT' | 'PROJECT'
@@ -613,7 +613,99 @@ export default function ResultAutomation() {
     setSuccess('Template deleted successfully')
   }
 
-  // Helper function to calculate CT + Exam total for display
+  // Enhanced image handling for DOCX with proper image embedding
+  const insertImageIntoCell = (targetCell: Element, imageData: string, studentName: string, studentXmlDoc: Document) => {
+    try {
+      // Validate image data
+      if (!imageData || (!imageData.startsWith('data:image/') && !imageData.startsWith('/9j/') && !imageData.startsWith('iVBORw0KGgo'))) {
+        throw new Error('Invalid image data')
+      }
+
+      // Convert base64 to proper format if needed
+      let base64Data = imageData
+      if (imageData.startsWith('data:image/')) {
+        base64Data = imageData.split(',')[1]
+      }
+
+      // Create a proper DOCX image structure
+      const paragraph = targetCell.querySelector('w\\:p, p')
+      if (paragraph) {
+        // Clear existing content
+        paragraph.innerHTML = ''
+        
+        // Create the image XML structure for DOCX
+        const run = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'w:r')
+        const drawing = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'w:drawing')
+        
+        // Create inline drawing with minimal spacing
+        const inline = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing', 'wp:inline')
+        inline.setAttribute('distT', '0')  // No top margin
+        inline.setAttribute('distB', '0')  // No bottom margin
+        inline.setAttribute('distL', '0')  // No left margin
+        inline.setAttribute('distR', '0')  // No right margin
+        
+        // Set image dimensions (smaller for table cells)
+        const extent = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing', 'wp:extent')
+        extent.setAttribute('cx', '571500') // ~0.625 inch width (smaller)
+        extent.setAttribute('cy', '762000') // ~0.833 inch height (smaller)
+        
+        // Create effect extent
+        const effectExtent = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing', 'wp:effectExtent')
+        effectExtent.setAttribute('l', '0')
+        effectExtent.setAttribute('t', '0')
+        effectExtent.setAttribute('r', '0')
+        effectExtent.setAttribute('b', '0')
+        
+        // Create doc properties
+        const docPr = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing', 'wp:docPr')
+        docPr.setAttribute('id', '1')
+        docPr.setAttribute('name', `${studentName}_photo`)
+        docPr.setAttribute('descr', `Photo of ${studentName}`)
+        
+        // Create graphic
+        const graphic = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/main', 'a:graphic')
+        const graphicData = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/main', 'a:graphicData')
+        graphicData.setAttribute('uri', 'http://schemas.openxmlformats.org/drawingml/2006/picture')
+        
+        // Create picture
+        const pic = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/picture', 'pic:pic')
+        const nvPicPr = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/picture', 'pic:nvPicPr')
+        const cNvPr = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/picture', 'pic:cNvPr')
+        cNvPr.setAttribute('id', '1')
+        cNvPr.setAttribute('name', `${studentName}_photo`)
+        
+        const cNvPicPr = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/picture', 'pic:cNvPicPr')
+        
+        // Create blip fill
+        const blipFill = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/picture', 'pic:blipFill')
+        const blip = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/main', 'a:blip')
+        
+        // For now, we'll embed the image data directly as a comment and create a placeholder
+        // This is because proper DOCX image embedding requires relationship management
+        const imageComment = studentXmlDoc.createComment(`STUDENT_IMAGE_DATA:${base64Data}:${studentName}`)
+        
+        // Create a visible placeholder that can be processed later
+        const textRun = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'w:r')
+        const text = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'w:t')
+        text.textContent = `[PHOTO: ${studentName}]`
+        
+        // Add image data as attribute for post-processing
+        text.setAttribute('data-image', base64Data)
+        text.setAttribute('data-student', studentName)
+        
+        textRun.appendChild(text)
+        paragraph.appendChild(imageComment)
+        paragraph.appendChild(textRun)
+        
+        return true
+      }
+      
+      return false
+    } catch (error) {
+      console.error('Error inserting image:', error)
+      return false
+    }
+  }
   const calculateCTExamTotal = (studentName: string, subject: string): number => {
     const ctKey = `${studentName}_${subject}`
     const examKey = `${studentName}_${subject}`
@@ -637,6 +729,11 @@ export default function ResultAutomation() {
     
     if (format === 'class_name') {
       return "CLASS: " + student.className || "CLASS: " + student.classname || "CLASS: " + classNames[student.username] || 'N/A'
+    }
+    
+    // Handle student image
+    if (format === 'student_image') {
+      return student.img || '' // Return the image URL/path or empty string if no image
     }
     
     // Handle CT scores (manual input)
@@ -764,6 +861,9 @@ export default function ResultAutomation() {
       
       console.log(`Processing ${studentGroups.size} unique students from ${results.length} result records`)
       
+      // Track total images processed across all students
+      let totalImagesProcessed = 0
+      
       // Load the original DOCX file
       const zip = new JSZip()
       const docxZip = await zip.loadAsync(selectedTemplate.originalDocxBuffer)
@@ -780,12 +880,36 @@ export default function ResultAutomation() {
       
       // Process each unique student and create one document per student
       for (const [studentName, studentResults] of Array.from(studentGroups)) {
+        // Initialize array to track processed images for this student
+        const processedImages: Array<{
+          mapping: { cellId: string }
+          imageInfo: {
+            relationshipId: string
+            fileName: string
+            width: number
+            height: number
+            data: string
+          }
+        }> = []
+        
         // Merge all exam results for this student
         const mergedStudent = mergeStudentResults(studentResults)
         
         // Clone the original XML for this student
         const studentXmlDoc = xmlDoc.cloneNode(true) as Document
         const studentTables = studentXmlDoc.querySelectorAll('w\\:tbl, tbl')
+        
+        // Create new DOCX zip for this student
+        const newZip = new JSZip()
+        
+        // Copy all files from original DOCX first
+        await Promise.all(Object.keys(docxZip.files).map(async (filename) => {
+          const file = docxZip.files[filename]
+          if (!file.dir && filename !== 'word/document.xml') {
+            const content = await file.async('arraybuffer')
+            newZip.file(filename, content)
+          }
+        }))
         
         // Apply mappings for this student with merged data
         selectedTemplate.mappings.forEach(mapping => {
@@ -802,23 +926,41 @@ export default function ResultAutomation() {
                 if (targetCell) {
                   const value = getStudentValueMerged(mergedStudent, studentResults, mapping)
                   
-                  // Find the text element and replace its content
-                  const textElements = targetCell.querySelectorAll('w\\:t, t')
-                  if (textElements.length > 0) {
-                    textElements[0].textContent = value
-                    // Clear other text elements in the same cell
-                    for (let i = 1; i < textElements.length; i++) {
-                      textElements[i].textContent = ''
+                  // Handle student images with simplified approach
+                  if (mapping.format === 'student_image' && value) {
+                    const imageInserted = insertImageIntoCell(targetCell, value, mergedStudent.username, studentXmlDoc)
+                    
+                    if (!imageInserted) {
+                      // Fallback to text placeholder if image insertion fails
+                      const paragraph = targetCell.querySelector('w\\:p, p')
+                      if (paragraph) {
+                        paragraph.innerHTML = ''
+                        const run = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'w:r')
+                        const text = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'w:t')
+                        text.textContent = `[No Photo: ${mergedStudent.username}]`
+                        run.appendChild(text)
+                        paragraph.appendChild(run)
+                      }
                     }
                   } else {
-                    // Create new text element if none exists
-                    const paragraph = targetCell.querySelector('w\\:p, p')
-                    if (paragraph) {
-                      const run = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'w:r')
-                      const text = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'w:t')
-                      text.textContent = value
-                      run.appendChild(text)
-                      paragraph.appendChild(run)
+                    // Handle regular text content
+                    const textElements = targetCell.querySelectorAll('w\\:t, t')
+                    if (textElements.length > 0) {
+                      textElements[0].textContent = value
+                      // Clear other text elements in the same cell
+                      for (let i = 1; i < textElements.length; i++) {
+                        textElements[i].textContent = ''
+                      }
+                    } else {
+                      // Create new text element if none exists
+                      const paragraph = targetCell.querySelector('w\\:p, p')
+                      if (paragraph) {
+                        const run = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'w:r')
+                        const text = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'w:t')
+                        text.textContent = value
+                        run.appendChild(text)
+                        paragraph.appendChild(run)
+                      }
                     }
                   }
                 }
@@ -827,25 +969,215 @@ export default function ResultAutomation() {
           }
         })
         
+        // Process image placeholders before serialization
+        const imageElements = studentXmlDoc.querySelectorAll('w\\:t[data-image], t[data-image]')
+        console.log(`Found ${imageElements.length} image placeholders to process`)
+        
+        imageElements.forEach((textElement, index) => {
+          try {
+            const imageData = textElement.getAttribute('data-image')
+            const studentName = textElement.getAttribute('data-student')
+            
+            if (imageData && studentName) {
+              // Find the parent paragraph
+              const paragraph = textElement.closest('w\\:p, p')
+              if (paragraph) {
+                // Clear the paragraph content
+                paragraph.innerHTML = ''
+                
+                // Create a proper image structure
+                const run = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'w:r')
+                const drawing = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'w:drawing')
+                
+                // Create inline drawing with proper dimensions
+                const inline = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing', 'wp:inline')
+                inline.setAttribute('distT', '0')  // No top margin
+                inline.setAttribute('distB', '0')  // No bottom margin
+                inline.setAttribute('distL', '0')  // No left margin
+                inline.setAttribute('distR', '0')  // No right margin
+                
+                // Set reasonable image dimensions (smaller for table cells)
+                const extent = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing', 'wp:extent')
+                extent.setAttribute('cx', '571500')  // ~0.625 inch width (smaller)
+                extent.setAttribute('cy', '762000') // ~0.833 inch height (smaller)
+                
+                const effectExtent = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing', 'wp:effectExtent')
+                effectExtent.setAttribute('l', '0')
+                effectExtent.setAttribute('t', '0')
+                effectExtent.setAttribute('r', '0')
+                effectExtent.setAttribute('b', '0')
+                
+                const docPr = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing', 'wp:docPr')
+                docPr.setAttribute('id', (index + 1).toString())
+                docPr.setAttribute('name', `${studentName}_photo`)
+                
+                const graphic = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/main', 'a:graphic')
+                const graphicData = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/main', 'a:graphicData')
+                graphicData.setAttribute('uri', 'http://schemas.openxmlformats.org/drawingml/2006/picture')
+                
+                const pic = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/picture', 'pic:pic')
+                const nvPicPr = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/picture', 'pic:nvPicPr')
+                const cNvPr = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/picture', 'pic:cNvPr')
+                cNvPr.setAttribute('id', (index + 1).toString())
+                cNvPr.setAttribute('name', `${studentName}_photo`)
+                
+                const cNvPicPr = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/picture', 'pic:cNvPicPr')
+                
+                const blipFill = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/picture', 'pic:blipFill')
+                const blip = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/main', 'a:blip')
+                
+                // Create a relationship ID for the image
+                const relationshipId = `rId${1000 + index}`
+                blip.setAttribute('r:embed', relationshipId)
+                
+                const stretch = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/main', 'a:stretch')
+                const fillRect = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/main', 'a:fillRect')
+                
+                const spPr = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/picture', 'pic:spPr')
+                const xfrm = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/main', 'a:xfrm')
+                const off = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/main', 'a:off')
+                off.setAttribute('x', '0')
+                off.setAttribute('y', '0')
+                const ext = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/main', 'a:ext')
+                ext.setAttribute('cx', '571500')
+                ext.setAttribute('cy', '762000')
+                
+                const prstGeom = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/main', 'a:prstGeom')
+                prstGeom.setAttribute('prst', 'rect')
+                const avLst = studentXmlDoc.createElementNS('http://schemas.openxmlformats.org/drawingml/2006/main', 'a:avLst')
+                
+                // Build the structure
+                stretch.appendChild(fillRect)
+                blipFill.appendChild(blip)
+                blipFill.appendChild(stretch)
+                
+                xfrm.appendChild(off)
+                xfrm.appendChild(ext)
+                prstGeom.appendChild(avLst)
+                spPr.appendChild(xfrm)
+                spPr.appendChild(prstGeom)
+                
+                nvPicPr.appendChild(cNvPr)
+                nvPicPr.appendChild(cNvPicPr)
+                
+                pic.appendChild(nvPicPr)
+                pic.appendChild(blipFill)
+                pic.appendChild(spPr)
+                
+                graphicData.appendChild(pic)
+                graphic.appendChild(graphicData)
+                
+                inline.appendChild(extent)
+                inline.appendChild(effectExtent)
+                inline.appendChild(docPr)
+                inline.appendChild(graphic)
+                
+                drawing.appendChild(inline)
+                run.appendChild(drawing)
+                paragraph.appendChild(run)
+                
+                // Store image info for relationship creation
+                const imageFileName = `image_${studentName}_${index + 1}.jpg`
+                processedImages.push({
+                  mapping: { cellId: `image_${index}` },
+                  imageInfo: {
+                    relationshipId,
+                    fileName: imageFileName,
+                    width: 571500,
+                    height: 762000,
+                    data: imageData
+                  }
+                })
+                
+                // Add the image file to the ZIP
+                try {
+                  // Convert base64 to binary
+                  let binaryData = imageData
+                  if (imageData.startsWith('data:image/')) {
+                    binaryData = imageData.split(',')[1]
+                  }
+                  
+                  const imageBuffer = Uint8Array.from(atob(binaryData), c => c.charCodeAt(0))
+                  newZip.file(`word/media/${imageFileName}`, imageBuffer)
+                } catch (imageError) {
+                  console.error('Error adding image to ZIP:', imageError)
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error processing image placeholder:', error)
+          }
+        })
+        
+        // Add required namespaces to document root if not present
+        const documentElement = studentXmlDoc.documentElement
+        if (documentElement) {
+          // Add drawing namespaces if they don't exist
+          if (!documentElement.hasAttribute('xmlns:wp')) {
+            documentElement.setAttribute('xmlns:wp', 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing')
+          }
+          if (!documentElement.hasAttribute('xmlns:a')) {
+            documentElement.setAttribute('xmlns:a', 'http://schemas.openxmlformats.org/drawingml/2006/main')
+          }
+          if (!documentElement.hasAttribute('xmlns:pic')) {
+            documentElement.setAttribute('xmlns:pic', 'http://schemas.openxmlformats.org/drawingml/2006/picture')
+          }
+          if (!documentElement.hasAttribute('xmlns:r')) {
+            documentElement.setAttribute('xmlns:r', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships')
+          }
+        }
+        
         // Serialize the modified XML
         const serializer = new XMLSerializer()
         const modifiedDocumentXml = serializer.serializeToString(studentXmlDoc)
         
-        // Create new DOCX file for this student
-        const newZip = new JSZip()
-        
-        // Copy all files from original DOCX
-        await Promise.all(Object.keys(docxZip.files).map(async (filename) => {
-          const file = docxZip.files[filename]
-          if (filename === 'word/document.xml') {
-            // Use our modified document.xml
-            newZip.file(filename, modifiedDocumentXml)
-          } else if (!file.dir) {
-            // Copy other files as-is
-            const content = await file.async('arraybuffer')
-            newZip.file(filename, content)
+        // Update relationships if images were processed
+        if (processedImages.length > 0) {
+          try {
+            // Ensure media directory exists
+            if (!newZip.file('word/media/')) {
+              newZip.folder('word/media')
+            }
+            
+            // Read existing relationships
+            const relsFile = docxZip.file('word/_rels/document.xml.rels')
+            let relsXml = ''
+            
+            if (relsFile) {
+              relsXml = await relsFile.async('string')
+            } else {
+              // Create basic relationships file if it doesn't exist
+              relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+</Relationships>`
+            }
+            
+            // Parse relationships XML
+            const relsDoc = new DOMParser().parseFromString(relsXml, 'text/xml')
+            const relationshipsElement = relsDoc.querySelector('Relationships')
+            
+            if (relationshipsElement) {
+              // Add image relationships
+              processedImages.forEach(({ imageInfo }) => {
+                const relationship = relsDoc.createElement('Relationship')
+                relationship.setAttribute('Id', imageInfo.relationshipId)
+                relationship.setAttribute('Type', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image')
+                relationship.setAttribute('Target', `media/${imageInfo.fileName}`)
+                relationshipsElement.appendChild(relationship)
+              })
+              
+              // Serialize updated relationships
+              const updatedRelsXml = new XMLSerializer().serializeToString(relsDoc)
+              newZip.file('word/_rels/document.xml.rels', updatedRelsXml)
+            }
+          } catch (relsError) {
+            console.error('Error updating relationships:', relsError)
+            // Continue without relationships - images may not display but document will still work
           }
-        }))
+        }
+        
+        // Add the modified document.xml
+        newZip.file('word/document.xml', modifiedDocumentXml)
         
         // Generate the new DOCX file
         const newDocxBuffer = await newZip.generateAsync({ type: 'blob' })
@@ -853,9 +1185,12 @@ export default function ResultAutomation() {
         // Download the file - one per student
         const fileName = `${selectedTemplate.name}_${studentName.replace(/[^a-zA-Z0-9]/g, '_')}.docx`
         saveAs(newDocxBuffer, fileName)
+        
+        // Add to total images processed
+        totalImagesProcessed += processedImages.length
       }
       
-      setSuccess(`Generated ${studentGroups.size} DOCX files (one per student) from ${results.length} result records!`)
+      setSuccess(`Generated ${studentGroups.size} DOCX files (one per student) from ${results.length} result records! ${totalImagesProcessed > 0 ? `Successfully embedded ${totalImagesProcessed} student images.` : 'No student images were processed.'}`)
       
     } catch (err) {
       console.error('Error generating DOCX:', err)
@@ -923,6 +1258,11 @@ export default function ResultAutomation() {
     
     if (format === 'class_name') {
       return "CLASS: " + mergedStudent.className || "CLASS: " + mergedStudent.classname || 'N/A'
+    }
+    
+    // Handle student image
+    if (format === 'student_image') {
+      return mergedStudent.img || '' // Return the image URL/path or empty string if no image
     }
     
     // Handle CT scores (manual input)
@@ -1480,7 +1820,7 @@ export default function ResultAutomation() {
                                         } ${
                                           isSelected ? 'ring-2 ring-blue-500 bg-gradient-to-r from-blue-100 to-indigo-100 animate-pulse-glow' : ''
                                         }`}
-                                        title={!isMapped ? 'Click to map this cell to data' : `Mapped to ${mapping?.format === 'student_id' ? 'Student ID' : mapping?.format === 'class_name' ? 'Class Name' : mapping?.subject}`}
+                                        title={!isMapped ? 'Click to map this cell to data' : `Mapped to ${mapping?.format === 'student_id' ? 'Student ID' : mapping?.format === 'class_name' ? 'Class Name' : mapping?.format === 'student_image' ? 'Student Image' : mapping?.subject}`}
                                       >
                                         {isMapped ? (
                                           <div className="text-center">
@@ -1488,6 +1828,7 @@ export default function ResultAutomation() {
                                               {mapping?.format === 'student_name' ? 'Student Name' :
                                                mapping?.format === 'student_id' ? 'Student ID' :
                                                mapping?.format === 'class_name' ? 'Class Name' :
+                                               mapping?.format === 'student_image' ? 'Student Image' :
                                                mapping?.subject || mapping?.format}
                                             </div>
                                             <div className=" text-green-600 bg-green-50 px-2 py-1 rounded-full mt-1 inline-block">
@@ -1541,6 +1882,7 @@ export default function ResultAutomation() {
                                 {mapping.format === 'student_name' ? 'Student Name' :
                                  mapping.format === 'student_id' ? 'Student ID' :
                                  mapping.format === 'class_name' ? 'Class Name' :
+                                 mapping.format === 'student_image' ? 'Student Image' :
                                  mapping.subject || mapping.format}
                               </span>
                               {mapping.examTerm && (
@@ -1613,6 +1955,7 @@ export default function ResultAutomation() {
                               {mapping.format === 'student_name' ? 'Student Name' :
                                mapping.format === 'student_id' ? 'Student ID' :
                                mapping.format === 'class_name' ? 'Class' :
+                               mapping.format === 'student_image' ? 'Student Photo' :
                                mapping.format === 'ct_score' ? `${mapping.subject} (CT)` :
                                mapping.format === 'exam_score' ? `${mapping.subject} (Exam)` :
                                mapping.format === 'ct_exam_total' ? `${mapping.subject} (Total)` :
@@ -1729,7 +2072,27 @@ export default function ResultAutomation() {
                             
                             return (
                               <td key={mapIndex} className="p-4 text-slate-700 font-medium">
-                                {value}
+                                {mapping.format === 'student_image' && value ? (
+                                  <img 
+                                    src={value} 
+                                    alt={`${result.username} photo`}
+                                    className="w-12 h-12 rounded-full object-cover border-2 border-slate-200"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none'
+                                      e.currentTarget.nextElementSibling.style.display = 'block'
+                                    }}
+                                  />
+                                ) : (
+                                  value
+                                )}
+                                {mapping.format === 'student_image' && (
+                                  <div 
+                                    className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 text-xs"
+                                    style={{ display: value ? 'none' : 'flex' }}
+                                  >
+                                    No Photo
+                                  </div>
+                                )}
                               </td>
                             )
                           })}
@@ -1814,6 +2177,7 @@ export default function ResultAutomation() {
                     <option value="student_name">Student Name (from username)</option>
                     <option value="student_id">Student ID (from user_email)</option>
                     <option value="class_name">Class Name (from classname)</option>
+                    <option value="student_image">Student Image/Photo</option>
                     <option value="percentage">Subject Score - Percentage (85%)</option>
                     <option value="raw">Subject Score - Raw (17/20)</option>
                     <option value="total">Subject Score - Total (17)</option>
@@ -1961,6 +2325,14 @@ export default function ResultAutomation() {
                   <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-200">
                     <p className=" text-indigo-800 font-medium">
                       <strong>Class Name:</strong> This cell will be filled with the classname from your API data for each student.
+                    </p>
+                  </div>
+                )}
+
+                {currentMapping.format === 'student_image' && (
+                  <div className="p-4 bg-gradient-to-r from-pink-50 to-rose-50 rounded-2xl border border-pink-200">
+                    <p className=" text-pink-800 font-medium">
+                      <strong>Student Image:</strong> This cell will be filled with the student's photo/image from your API data. The image will be inserted as an HTML img tag in the generated document.
                     </p>
                   </div>
                 )}
