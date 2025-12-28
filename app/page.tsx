@@ -2079,7 +2079,10 @@ export default function ResultAutomation() {
                                     className="w-12 h-12 rounded-full object-cover border-2 border-slate-200"
                                     onError={(e) => {
                                       e.currentTarget.style.display = 'none'
-                                      e.currentTarget.nextElementSibling.style.display = 'block'
+                                      const nextElement = e.currentTarget.nextElementSibling as HTMLElement
+                                      if (nextElement) {
+                                        nextElement.style.display = 'block'
+                                      }
                                     }}
                                   />
                                 ) : (
