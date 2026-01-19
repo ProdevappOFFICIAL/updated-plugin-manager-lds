@@ -1,0 +1,176 @@
+/* Custom styles for RichTextEditor with Math support */
+
+.rich-text-editor-container {
+  position: relative;
+  z-index: 1;
+}
+
+.quill-wrapper {
+  position: relative;
+  z-index: 1;
+  min-height: 120px;
+}
+
+.quill-wrapper .ql-container {
+  min-height: 100px !important;
+}
+
+.quill-wrapper .ql-editor {
+  min-height: 80px !important;
+}
+
+.question-editor {
+  font-size: 12px;
+  min-height: 150px;
+}
+
+.question-editor .ql-toolbar {
+  border-top: 1px solid #ccc;
+  border-left: 1px solid #ccc;
+  border-right: 1px solid #ccc;
+  border-bottom: none;
+}
+
+.question-editor .ql-container {
+  border-bottom: 1px solid #ccc;
+  border-left: 1px solid #ccc;
+  border-right: 1px solid #ccc;
+  border-top: none;
+  font-size: 12px;
+  min-height: 120px;
+}
+
+.question-editor .ql-editor {
+  min-height: 100px;
+}
+
+/* Dark mode support */
+.dark .question-editor .ql-toolbar {
+  border-color: #4a5568;
+  background-color: #2d3748;
+}
+
+.dark .question-editor .ql-container {
+  border-color: #4a5568;
+  background-color: #2d3748;
+  color: #e2e8f0;
+}
+
+.dark .question-editor .ql-editor {
+  color: #e2e8f0;
+}
+
+/* Math toolbar styles */
+.math-toolbar {
+  z-index: 1000;
+  max-width: 600px;
+}
+
+.math-toolbar .grid {
+  gap: 4px;
+}
+
+.math-toolbar button {
+  transition: all 0.2s ease;
+}
+
+.math-toolbar button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* KaTeX formula styling */
+.ql-formula {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 3px;
+  padding: 2px 4px;
+  margin: 0 2px;
+  display: inline-block;
+}
+
+.dark .ql-formula {
+  background-color: #374151;
+  border-color: #4b5563;
+}
+
+/* Math toolbar toggle button */
+.math-toolbar-toggle {
+  transition: all 0.2s ease;
+}
+
+.math-toolbar-toggle:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Formula preview styling */
+.katex {
+  font-size: 1.1em;
+}
+
+.katex-display {
+  margin: 0.5em 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .math-toolbar {
+    max-width: 100%;
+  }
+
+  .math-toolbar .grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .math-toolbar .grid.grid-cols-2 {
+    grid-template-columns: repeat(1, 1fr);
+  }
+}
+
+/* Animation for toolbar appearance */
+.math-toolbar {
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scrollbar styling for templates */
+.math-toolbar .overflow-y-auto::-webkit-scrollbar {
+  width: 6px;
+}
+
+.math-toolbar .overflow-y-auto::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.math-toolbar .overflow-y-auto::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.math-toolbar .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+.dark .math-toolbar .overflow-y-auto::-webkit-scrollbar-track {
+  background: #374151;
+}
+
+.dark .math-toolbar .overflow-y-auto::-webkit-scrollbar-thumb {
+  background: #6b7280;
+}
+
+.dark .math-toolbar .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
